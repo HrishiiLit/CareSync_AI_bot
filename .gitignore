@@ -1,0 +1,55 @@
+# Build and Release Folders
+bin-debug/
+bin-release/
+[Oo]bj/
+[Bb]in/
+
+# Other files and folders
+.settings/
+
+# Executables
+*.swf
+*.air
+*.ipa
+*.apk
+
+# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
+# should NOT be excluded as they contain compiler settings and other important
+# information for Eclipse / Flash Builder.
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Next.js
+.next/
+out/
+
+# Local envs
+.env
+.env.local
+backend/.env
+frontend/.env.local
+
+# Python
+venv/
+.venv/
+backend/.venv/
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+dist/
+build/

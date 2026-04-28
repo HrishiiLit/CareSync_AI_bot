@@ -1,0 +1,2 @@
+class RestCatalog:
+    pass
