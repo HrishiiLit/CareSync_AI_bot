@@ -123,3 +123,14 @@ Create `backend/.env` with required service credentials:
 Create `frontend/.env.local`:
 
 - `NEXT_PUBLIC_API_URL=http://localhost:8000`
+
+### ElevenLabs post-call webhook during local development
+
+If you want ElevenLabs to send post-call results back to your local backend, expose the FastAPI server with ngrok and configure the **Post-Call Webhook** in the ElevenLabs dashboard to point to:
+
+- `https://<your-ngrok-host>/api/elevenlabs/webhook`
+
+Keep these running while testing:
+
+- `uvicorn main:app --reload --port 8000`
+- `ngrok http 8000`

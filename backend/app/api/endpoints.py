@@ -176,6 +176,92 @@ class LabEventRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+_MISSING = object()
+
+
+def _find_value(data: Any, keys: set[str]) -> Any:
+    if isinstance(data, dict):
+        for key in keys:
+            if key in data:
+                value = data[key]
+                if value is not None:
+                    return value
+        for value in data.values():
+            found = _find_value(value, keys)
+            if found is not _MISSING:
+                return found
+    elif isinstance(data, list):
+        for item in data:
+            found = _find_value(item, keys)
+            if found is not _MISSING:
+                return found
+    return _MISSING
+
+
+def _webhook_text(value: Any, limit: int = 10000) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value[:limit]
+    if isinstance(value, list):
+        lines: list[str] = []
+        for entry in value:
+            if isinstance(entry, dict):
+                role = entry.get("role", "unknown")
+                text = entry.get("message", entry.get("text", ""))
+                ts = entry.get("time_in_call_secs", "")
+                prefix = f"[{ts}s] " if ts else ""
+                lines.append(f"{prefix}{role}: {text}")
+            else:
+                lines.append(str(entry))
+        return "\n".join(lines)[:limit]
+    return str(value)[:limit]
+
+
+def _infer_webhook_status(payload: dict[str, Any]) -> str:
+    raw_status = _find_value(payload, {"status", "call_status", "callOutcome", "call_outcome"})
+    status_text = str(raw_status or "").strip().lower()
+    if any(token in status_text for token in {"failed", "error", "cancelled", "canceled"}):
+        return "failed"
+    return "completed"
+
+
+async def _resolve_call_log_from_webhook(payload: dict[str, Any]) -> tuple[str | None, str]:
+    call_log_id = _find_value(payload, {"call_log_id"})
+    if call_log_id is not _MISSING and call_log_id:
+        return str(call_log_id), "call_log_id"
+
+    conversation_id = _find_value(payload, {"conversation_id"})
+    call_sid = _find_value(payload, {"callSid", "call_sid", "twilio_call_sid", "twilio_sid"})
+    workflow_id = _find_value(payload, {"workflow_id"})
+    doctor_id = _find_value(payload, {"doctor_id"})
+
+    candidate_logs: list[tuple[str, list[dict[str, Any]]]] = []
+    if workflow_id is not _MISSING and workflow_id:
+        candidate_logs.append(("workflow_id", await _run_db_call(db.list_call_logs, str(workflow_id), None)))
+    if doctor_id is not _MISSING and doctor_id:
+        candidate_logs.append(("doctor_id", await _run_db_call(db.list_call_logs, None, str(doctor_id))))
+    if not candidate_logs:
+        candidate_logs.append(("all", await _run_db_call(db.list_call_logs, None, None)))
+
+    for source, logs in candidate_logs:
+        for log in logs or []:
+            execution_log = log.get("execution_log") or []
+            for step in execution_log:
+                step_call_log_id = _find_value(step, {"call_log_id"})
+                step_conversation_id = _find_value(step, {"conversation_id"})
+                step_call_sid = _find_value(step, {"callSid", "call_sid", "twilio_call_sid", "twilio_sid"})
+
+                if (
+                    (call_log_id is not _MISSING and step_call_log_id == call_log_id)
+                    or (conversation_id is not _MISSING and step_conversation_id == conversation_id)
+                    or (call_sid is not _MISSING and step_call_sid == call_sid)
+                ):
+                    return str(log.get("id")), source
+
+    return None, "unresolved"
+
+
 # ---------------------------------------------------------------------------
 # Local auth APIs (doctor/patient email-password)
 # ---------------------------------------------------------------------------
@@ -930,6 +1016,90 @@ async def check_call_status_endpoint(call_log_id: str):
     if not call_log:
         raise HTTPException(status_code=404, detail="Call log not found")
     return call_log
+
+
+@router.post("/elevenlabs/webhook")
+async def elevenlabs_webhook_endpoint(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Webhook payload must be valid JSON")
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Webhook payload must be a JSON object")
+
+    resolved_call_log_id, resolution_source = await _resolve_call_log_from_webhook(payload)
+    conversation_id = _find_value(payload, {"conversation_id"})
+    call_sid = _find_value(payload, {"callSid", "call_sid", "twilio_call_sid", "twilio_sid"})
+    call_outcome = _find_value(payload, {"call_outcome", "callOutcome", "outcome"})
+    call_status = _find_value(payload, {"status", "call_status"})
+    patient_confirmed = _find_value(payload, {"patient_confirmed"})
+    confirmed_date = _find_value(payload, {"confirmed_date"})
+    confirmed_time = _find_value(payload, {"confirmed_time"})
+    transcript = _webhook_text(_find_value(payload, {"transcript"}))
+    analysis = _find_value(payload, {"analysis"})
+
+    if not resolved_call_log_id:
+        logger.warning(
+            "ElevenLabs webhook received but no call_log_id could be resolved. keys=%s",
+            sorted(payload.keys()),
+        )
+        return {
+            "status": "accepted_without_call_log",
+            "resolution_source": resolution_source,
+            "conversation_id": str(conversation_id) if conversation_id is not _MISSING else None,
+            "call_sid": str(call_sid) if call_sid is not _MISSING else None,
+        }
+
+    existing_call_log = await _run_db_call(db.get_call_log, resolved_call_log_id)
+    if not existing_call_log:
+        raise HTTPException(status_code=404, detail="Call log not found")
+
+    execution_log = existing_call_log.get("execution_log") or []
+    webhook_entry: dict[str, Any] = {
+        "node_id": "elevenlabs_webhook",
+        "node_type": "webhook",
+        "label": "ElevenLabs Webhook",
+        "status": "ok" if _infer_webhook_status(payload) == "completed" else "error",
+        "message": "ElevenLabs post-call webhook received",
+        "conversation_id": str(conversation_id) if conversation_id is not _MISSING else None,
+        "call_sid": str(call_sid) if call_sid is not _MISSING else None,
+        "call_status": str(call_status) if call_status is not _MISSING else None,
+        "call_outcome": str(call_outcome) if call_outcome is not _MISSING else None,
+        "patient_confirmed": patient_confirmed if patient_confirmed is not _MISSING else None,
+        "confirmed_date": str(confirmed_date) if confirmed_date is not _MISSING else None,
+        "confirmed_time": str(confirmed_time) if confirmed_time is not _MISSING else None,
+    }
+
+    if transcript is not None:
+        webhook_entry["transcript"] = transcript
+        webhook_entry["transcript_preview"] = transcript[:200] + ("..." if len(transcript) > 200 else "")
+    if analysis is not _MISSING and analysis is not None:
+        webhook_entry["analysis"] = analysis
+
+    execution_log.append(webhook_entry)
+
+    status = _infer_webhook_status(payload)
+    outcome = str(call_outcome or call_status or "") or None
+    if not outcome and patient_confirmed is True:
+        outcome = "confirmed"
+
+    await _run_db_call(
+        db.update_call_log,
+        resolved_call_log_id,
+        {
+            "status": status,
+            "outcome": outcome,
+            "execution_log": execution_log,
+        },
+    )
+
+    return {
+        "status": "ok",
+        "call_log_id": resolved_call_log_id,
+        "resolution_source": resolution_source,
+        "updated_status": status,
+    }
 
 
 @router.get("/reports")
