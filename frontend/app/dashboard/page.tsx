@@ -59,9 +59,11 @@ export default function DashboardPage() {
   const [loadingConditions, setLoadingConditions] = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState(false);
 
+  const [selectedCallLogId, setSelectedCallLogId] = useState<string | null>(null);
+
   const router = useRouter();
   const { user } = useLocalAuth();
-  const doctorId = user?.sub;
+  const doctorId = user?.doctor_id ?? user?.sub;
 
   const fetchPatients = useCallback(async () => {
     if (!doctorId) return;
@@ -653,34 +655,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Recent Call Logs */}
-        <div className="rounded-xl border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <div className="flex items-center gap-2">
-              <Phone className="size-4 text-primary" />
-              <h3 className="text-sm font-semibold">Recent Calls</h3>
-            </div>
-            <Link href="/calls"><Button size="sm" variant="ghost">All <ArrowRight className="size-3" /></Button></Link>
-          </div>
-          {loadingData ? (
-            <div className="px-5 py-6 text-sm text-muted-foreground">Loading…</div>
-          ) : callLogs.length === 0 ? (
-            <div className="px-5 py-6 text-center text-sm text-muted-foreground">No call logs yet.</div>
-          ) : (
-            <div className="divide-y divide-border/50">
-              {recentCalls.map((cl) => (
-                <div key={cl.id} className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className={cn("inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-semibold capitalize", statusColor(cl.status))}>{cl.status}</span>
-                    {cl.outcome && <span className="text-[10px] text-muted-foreground">{cl.outcome}</span>}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">{new Date(cl.created_at).toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Quick links */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="mb-3 text-sm font-semibold">Quick Links</h3>
@@ -700,6 +674,52 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Selected Call Detail View */}
+      {selectedCallLogId && callLogs.find((cl) => cl.id === selectedCallLogId) ? (() => {
+        const selectedCallLog = callLogs.find((cl) => cl.id === selectedCallLogId);
+        const selectedWebhookEntry = selectedCallLog ? getWebhookEntry(selectedCallLog) : null;
+        return (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-sm font-semibold">Call Details</h2>
+                <p className="text-xs text-muted-foreground">Expanded data captured from the workflow run and ElevenLabs webhook.</p>
+              </div>
+              <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setSelectedCallLogId(null)}>
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-3 text-xs md:grid-cols-2">
+              <DetailItem label="Patient" value={selectedCallLog.patient_name ?? selectedCallLog.patient_id ?? "Unknown"} />
+              <DetailItem label="Status" value={selectedCallLog.status ?? "unknown"} />
+              <DetailItem label="Outcome" value={selectedCallLog.outcome ?? "—"} />
+              <DetailItem label="Created" value={selectedCallLog.created_at ? new Date(selectedCallLog.created_at).toLocaleString() : "—"} />
+              <DetailItem label="Conversation ID" value={selectedWebhookEntry?.conversation_id ?? selectedCallLog.conversation_id ?? "—"} />
+              <DetailItem label="Call SID" value={selectedWebhookEntry?.call_sid ?? selectedCallLog.call_sid ?? "—"} />
+            </div>
+
+            {selectedWebhookEntry && (
+              <>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Transcript</p>
+                  <pre className="mt-2 max-h-72 overflow-auto rounded-md border bg-muted/30 p-3 text-[11px] leading-relaxed whitespace-pre-wrap">
+                    {formatWebhookTranscript(selectedWebhookEntry)}
+                  </pre>
+                </div>
+              </>
+            )}
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Execution Log</p>
+              <pre className="mt-2 max-h-72 overflow-auto rounded-md border bg-muted/30 p-3 text-[11px] leading-relaxed whitespace-pre-wrap">
+                {JSON.stringify(selectedCallLog.execution_log ?? [], null, 2)}
+              </pre>
+            </div>
+          </div>
+        );
+      })() : null}
     </div>
   );
 }
@@ -726,6 +746,27 @@ function InfoItem({ icon: Icon, label, value }: { icon: React.ComponentType<{ cl
         <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
         <p className="text-sm font-medium">{value}</p>
       </div>
+    </div>
+  );
+}
+
+function getWebhookEntry(callLog: any) {
+  const entries = Array.isArray(callLog?.execution_log) ? callLog.execution_log : [];
+  return entries.find((step: any) => step?.node_id === "elevenlabs_webhook") ?? null;
+}
+
+function formatWebhookTranscript(entry: any) {
+  const transcript = entry?.transcript;
+  if (typeof transcript === "string") return transcript;
+  if (Array.isArray(transcript)) return transcript.map((line: any) => (typeof line === "string" ? line : JSON.stringify(line, null, 2))).join("\n");
+  return "No transcript captured.";
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-muted/20 p-3">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words text-xs font-medium">{value}</p>
     </div>
   );
 }

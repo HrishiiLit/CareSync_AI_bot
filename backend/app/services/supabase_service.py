@@ -1121,11 +1121,14 @@ def update_call_log(log_id: str, payload: dict) -> dict:
 def list_call_logs(
     workflow_id: str | None = None,
     doctor_id: str | None = None,
+    patient_id: str | None = None,
 ) -> list[dict]:
     sb = get_supabase()
     q = sb.table("call_logs").select("*")
     if workflow_id:
         q = q.eq("workflow_id", workflow_id)
+    if patient_id:
+        q = q.eq("patient_id", patient_id)
     if doctor_id:
         patient_ids = [
             p["id"]

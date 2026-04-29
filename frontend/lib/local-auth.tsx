@@ -32,6 +32,7 @@ type LoginRedirectOptions = {
 type AuthContextValue = {
   isLoading: boolean;
   isAuthenticated: boolean;
+  token: string | undefined;
   user: AuthUser | undefined;
   loginWithRedirect: (options?: LoginRedirectOptions) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
@@ -95,7 +96,9 @@ export function LocalAuthProvider({ children }: { children: React.ReactNode }) {
             email: supabaseUser.email || "",
             role: data.role || "pending",
             name: supabaseUser.user_metadata?.name || supabaseUser.email || "User",
-            account_id: supabaseUser.id
+            account_id: supabaseUser.id,
+            doctor_id: data.doctor_id || undefined,
+            patient_id: data.patient_id || undefined,
           }
         };
         
@@ -224,6 +227,7 @@ export function LocalAuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextValue>(() => ({
     isLoading,
     isAuthenticated: !!session?.token,
+    token: session?.token,
     user: session?.user,
     loginWithRedirect,
     loginWithGoogle,

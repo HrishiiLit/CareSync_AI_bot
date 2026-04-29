@@ -6,7 +6,7 @@ import { createDoctorSlot, deleteDoctorSlot, listDoctorSlots, type DoctorManaged
 
 export default function AvailabilityPage() {
   const { user } = useLocalAuth();
-  const doctorId = user?.sub;
+  const doctorId = user?.doctor_id ?? user?.sub;
 
   const [slots, setSlots] = useState<DoctorManagedSlot[]>([]);
   const [start, setStart] = useState("");

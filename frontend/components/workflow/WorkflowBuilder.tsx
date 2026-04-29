@@ -98,53 +98,54 @@ const EXAMPLE_NODES: Node[] = [
     id: 'ex_1',
     type: 'trigger',
     position: { x: 280, y: 40 },
-    data: { label: 'Lab Results Received', nodeType: 'lab_results_received', description: 'Lab result arrives for patient', params: {} },
+    data: {
+      label: 'Follow-Up Due',
+      nodeType: 'follow_up_due',
+      description: 'A patient is due for a follow-up call',
+      params: {},
+    },
   },
   {
     id: 'ex_2',
-    type: 'conditional',
-    position: { x: 280, y: 180 },
-    data: { label: 'Check Result Values', nodeType: 'check_result_values', description: 'Are results abnormal?', params: { result: '' } },
+    type: 'action',
+    position: { x: 280, y: 190 },
+    data: {
+      label: 'Call Patient',
+      nodeType: 'call_patient',
+      description: 'Place an outbound call to confirm next steps',
+      params: {
+        message: 'Hi, this is CareSync calling to follow up on your recent visit and confirm your next appointment.',
+      },
+    },
   },
   {
     id: 'ex_3',
     type: 'action',
-    position: { x: 100, y: 340 },
-    data: { label: 'Call Patient', nodeType: 'call_patient', description: 'Place outbound Twilio call', params: { message: '' } },
+    position: { x: 280, y: 340 },
+    data: {
+      label: 'Send SMS Reminder',
+      nodeType: 'send_sms',
+      description: 'Text the patient after the call',
+      params: { message: 'We just tried to call you about your follow-up appointment. Please check your phone or reply here.' },
+    },
   },
   {
     id: 'ex_4',
-    type: 'action',
-    position: { x: 100, y: 490 },
-    data: { label: 'Schedule Appointment', nodeType: 'schedule_appointment', description: 'Schedule follow-up', params: {} },
-  },
-  {
-    id: 'ex_5',
     type: 'endpoint',
-    position: { x: 100, y: 640 },
-    data: { label: 'Send Summary to Doctor', nodeType: 'send_summary_to_doctor', description: 'Notify the doctor', params: {} },
-  },
-  {
-    id: 'ex_6',
-    type: 'action',
-    position: { x: 460, y: 340 },
-    data: { label: 'Send SMS', nodeType: 'send_sms', description: 'SMS with normal results', params: { message: 'Your results are normal.' } },
-  },
-  {
-    id: 'ex_7',
-    type: 'endpoint',
-    position: { x: 460, y: 490 },
-    data: { label: 'Log Completion', nodeType: 'log_completion', description: 'Workflow complete', params: {} },
+    position: { x: 280, y: 490 },
+    data: {
+      label: 'Send Summary to Doctor',
+      nodeType: 'send_summary_to_doctor',
+      description: 'Notify the doctor with call results',
+      params: {},
+    },
   },
 ];
 
 const EXAMPLE_EDGES: Edge[] = [
   { id: 'ee_1', source: 'ex_1', target: 'ex_2', animated: true, style: { stroke: '#C43B3B', strokeWidth: 2 } },
-  { id: 'ee_2', source: 'ex_2', sourceHandle: 'true', target: 'ex_3', animated: true, style: { stroke: '#10b981', strokeWidth: 2 } },
-  { id: 'ee_3', source: 'ex_2', sourceHandle: 'false', target: 'ex_6', animated: true, style: { stroke: '#ef4444', strokeWidth: 2 } },
-  { id: 'ee_4', source: 'ex_3', target: 'ex_4', animated: true, style: { stroke: '#C43B3B', strokeWidth: 2 } },
-  { id: 'ee_5', source: 'ex_4', target: 'ex_5', animated: true, style: { stroke: '#C43B3B', strokeWidth: 2 } },
-  { id: 'ee_6', source: 'ex_6', target: 'ex_7', animated: true, style: { stroke: '#C43B3B', strokeWidth: 2 } },
+  { id: 'ee_2', source: 'ex_2', target: 'ex_3', animated: true, style: { stroke: '#C43B3B', strokeWidth: 2 } },
+  { id: 'ee_3', source: 'ex_3', target: 'ex_4', animated: true, style: { stroke: '#C43B3B', strokeWidth: 2 } },
 ];
 
 // ─── Inner component — uses useReactFlow, must be inside ReactFlowProvider ──
@@ -501,9 +502,12 @@ function FlowContent() {
     setWorkflowName(name);
     setWorkflowDescription(description);
 
-    const doctorId = user?.sub ?? 'anonymous';
-
     try {
+      const doctorId = user?.doctor_id;
+      if (!doctorId) {
+        throw new Error('Doctor profile not loaded. Refresh or sign in again before saving workflows.');
+      }
+
       if (savedWorkflowId) {
         await updateWorkflow(savedWorkflowId, {
           name,
@@ -573,7 +577,10 @@ function FlowContent() {
     setNewPatientPhone('');
     setLoadingPatients(true);
     try {
-      const doctorId = user?.doctor_id ?? user?.sub ?? undefined;
+      const doctorId = user?.doctor_id;
+      if (!doctorId) {
+        throw new Error('Doctor profile not loaded. Refresh or sign in again before running workflows.');
+      }
       const scopedData = await listPatients(doctorId);
       const scopedPatients = Array.isArray(scopedData) ? scopedData : [];
 
@@ -596,7 +603,10 @@ function FlowContent() {
     if (!newPatientName.trim() || !newPatientPhone.trim()) return;
     setAddingPatient(true);
     try {
-      const doctorId = user?.doctor_id ?? user?.sub ?? 'anonymous';
+      const doctorId = user?.doctor_id;
+      if (!doctorId) {
+        throw new Error('Doctor profile not loaded. Refresh or sign in again before adding patients.');
+      }
       const created = await createPatient({
         name: newPatientName.trim(),
         phone: newPatientPhone.trim(),
@@ -714,7 +724,7 @@ function FlowContent() {
             Load Workflow
           </Button>
           <Button variant="outline" size="xs" onClick={loadExample}>
-            Load Example
+            Load Call Demo
           </Button>
           <Button variant="outline" size="xs" onClick={clearCanvas} disabled={nodes.length === 0}>
             Clear
@@ -825,7 +835,7 @@ function FlowContent() {
                   </span>{' '}
                   to reload a saved workflow, or{' '}
                   <span className="text-foreground bg-muted px-1.5 py-0.5 rounded font-mono">
-                    Load Example
+                    Load Call Demo
                   </span>{' '}
                   to see a pre-built one
                 </p>

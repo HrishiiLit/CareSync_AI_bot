@@ -6,7 +6,7 @@ import { listDoctorAppointments, updateDoctorAppointment, type DoctorAppointment
 
 export default function AppointmentsPage() {
   const { user } = useLocalAuth();
-  const doctorId = user?.sub;
+  const doctorId = user?.doctor_id ?? user?.sub;
 
   const [rows, setRows] = useState<DoctorAppointmentItem[]>([]);
   const [loading, setLoading] = useState(true);

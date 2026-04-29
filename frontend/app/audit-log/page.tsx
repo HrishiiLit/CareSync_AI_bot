@@ -13,7 +13,7 @@ type AuditEvent = {
 
 export default function AuditLogPage() {
   const { user } = useLocalAuth();
-  const doctorId = user?.sub;
+  const doctorId = user?.doctor_id ?? user?.sub;
 
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);

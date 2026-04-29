@@ -491,6 +491,10 @@ export async function createWorkflow(payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to create workflow (${response.status}): ${detail}`);
+  }
   return response.json();
 }
 
@@ -510,6 +514,10 @@ export async function updateWorkflow(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to update workflow (${response.status}): ${detail}`);
+  }
   return response.json();
 }
 
@@ -659,10 +667,11 @@ export async function executeWorkflow(
 // Call logs
 // ---------------------------------------------------------------------------
 
-export async function listCallLogs(workflowId?: string, doctorId?: string) {
+export async function listCallLogs(workflowId?: string, doctorId?: string, patientId?: string) {
   const params = new URLSearchParams();
   if (workflowId) params.set('workflow_id', workflowId);
   if (doctorId) params.set('doctor_id', doctorId);
+  if (patientId) params.set('patient_id', patientId);
   const qs = params.toString();
   const response = await fetch(`${API_URL}/api/call-logs${qs ? `?${qs}` : ''}`);
   return response.json();

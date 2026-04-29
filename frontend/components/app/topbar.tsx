@@ -59,7 +59,7 @@ export function Topbar() {
   const notifRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const doctorId = user?.sub;
+  const doctorId = user?.doctor_id ?? user?.sub;
   const displayName = user?.name || user?.email?.split("@")[0] || "Doctor";
   const initials = displayName
     .split(" ")

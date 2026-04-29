@@ -262,6 +262,32 @@ async def _resolve_call_log_from_webhook(payload: dict[str, Any]) -> tuple[str |
     return None, "unresolved"
 
 
+def _is_valid_elevenlabs_webhook(request: Request, payload: dict[str, Any]) -> bool:
+    expected_secret = (db.settings.elevenlabs_webhook_secret or "").strip()
+    if not expected_secret:
+        return True
+
+    candidate_values = [
+        request.headers.get("x-elevenlabs-webhook-secret"),
+        request.headers.get("x-webhook-secret"),
+        request.headers.get("x-elevenlabs-secret"),
+        request.headers.get("authorization"),
+        payload.get("webhook_secret"),
+        payload.get("secret"),
+    ]
+
+    for value in candidate_values:
+        if not value:
+            continue
+        normalized = str(value).strip()
+        if normalized.lower().startswith("bearer "):
+            normalized = normalized[7:].strip()
+        if normalized == expected_secret:
+            return True
+
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Local auth APIs (doctor/patient email-password)
 # ---------------------------------------------------------------------------
@@ -311,6 +337,8 @@ async def auth_sync(req: AuthSyncRequest):
     
     is_new = False
     actual_role = None
+    doctor_id = None
+    patient_id = None
 
     if not user_acc_data.data:
         is_new = True
@@ -329,19 +357,32 @@ async def auth_sync(req: AuthSyncRequest):
                 profile = await _run_db_call(
                     lambda: sb.table("doctors").select("*").eq("auth_user_id", req.auth_user_id).execute()
                 )
+                if profile.data:
+                    doctor_id = profile.data[0].get("id")
             else:
                 # Check patient_accounts first
                 profile = await _run_db_call(
                     lambda: sb.table("patient_accounts").select("*").eq("auth_user_id", req.auth_user_id).execute()
                 )
+                if profile.data:
+                    patient_id = profile.data[0].get("patient_id")
             if not profile.data:
                 is_new = True
+
+    if actual_role == "doctor" and doctor_id is None:
+        doctor = await _run_db_call(db.get_doctor_by_auth_user_id, req.auth_user_id)
+        doctor_id = doctor.get("id") if doctor else None
+    if actual_role == "patient" and patient_id is None:
+        patient = await _run_db_call(db.get_patient_by_auth_user_id, req.auth_user_id)
+        patient_id = patient.get("id") if patient else None
         
     return {
         "status": "synced",
         "is_new": is_new,
         "role": actual_role,
-        "user_id": req.auth_user_id
+        "user_id": req.auth_user_id,
+        "doctor_id": doctor_id,
+        "patient_id": patient_id,
     }
 
 
@@ -795,7 +836,6 @@ async def execute_workflow_endpoint(workflow_id: str, body: ExecuteRequest):
         db.create_call_log,
         {
             "workflow_id": workflow_id,
-            "doctor_id": workflow.get("doctor_id"),
             "patient_id": body.patient_id,
             "status": "running",
             "execution_log": [],
@@ -1006,8 +1046,12 @@ async def delete_medication_endpoint(patient_id: str, medication_id: str):
 
 
 @router.get("/call-logs")
-async def list_call_logs_endpoint(workflow_id: str | None = None, doctor_id: str | None = None):
-    return await _run_db_call(db.list_call_logs, workflow_id, doctor_id)
+async def list_call_logs_endpoint(
+    workflow_id: str | None = None,
+    doctor_id: str | None = None,
+    patient_id: str | None = None,
+):
+    return await _run_db_call(db.list_call_logs, workflow_id, doctor_id, patient_id)
 
 
 @router.post("/call-logs/{call_log_id}/check")
@@ -1027,6 +1071,9 @@ async def elevenlabs_webhook_endpoint(request: Request):
 
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Webhook payload must be a JSON object")
+
+    if not _is_valid_elevenlabs_webhook(request, payload):
+        raise HTTPException(status_code=401, detail="Invalid ElevenLabs webhook secret")
 
     resolved_call_log_id, resolution_source = await _resolve_call_log_from_webhook(payload)
     conversation_id = _find_value(payload, {"conversation_id"})

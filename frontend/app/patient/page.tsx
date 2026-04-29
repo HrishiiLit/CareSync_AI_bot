@@ -423,3 +423,12 @@ export default function PatientPortalPage() {
     </div>
   );
 }
+
+function KeyValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-background p-2">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words font-medium">{value}</p>
+    </div>
+  );
+}
