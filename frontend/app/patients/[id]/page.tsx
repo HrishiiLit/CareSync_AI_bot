@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getPatient, listConditions, listMedications, listReports } from "@/services/api";
+import dynamic from 'next/dynamic';
+
+const PdfUploadPreview = dynamic(() => import('@/components/pdf/PdfUploadPreview'), { ssr: false });
 
 export default function PatientDetailsPage() {
   const params = useParams<{ id: string }>();
@@ -99,6 +102,11 @@ export default function PatientDetailsPage() {
                 {item.dosage ? ` (${item.dosage})` : ""}
               </p>
             ))}
+          </div>
+
+          <div className="rounded-lg border bg-card p-4">
+            <h2 className="font-medium">Import / Analyze PDF</h2>
+            <PdfUploadPreview patientId={patientId} />
           </div>
         </div>
       ) : null}

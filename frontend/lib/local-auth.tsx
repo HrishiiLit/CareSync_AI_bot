@@ -133,7 +133,27 @@ export function LocalAuthProvider({ children }: { children: React.ReactNode }) {
 
         // 2. Check Supabase session (handles Google redirect)
         const { data: { session: sbSession } } = await supabase.auth.getSession();
-        
+
+        // Check for possible clock skew by decoding JWT issued-at (iat) claim.
+        try {
+          const token = sbSession?.access_token;
+          if (token) {
+            const parts = token.split('.');
+            if (parts.length === 3) {
+              try {
+                const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+                const iat = payload?.iat;
+                if (typeof iat === 'number') {
+                  const now = Math.floor(Date.now() / 1000);
+                  if (iat > now + 60) {
+                    console.warn('Supabase session appears to be issued in the future. Check your device clock for skew.');
+                  }
+                }
+              } catch { /* ignore malformed token */ }
+            }
+          }
+        } catch { /* no-op */ }
+
         if (sbSession?.user) {
           const intendedRole = window.localStorage.getItem(INTENDED_ROLE_KEY) || undefined;
           await syncSession(sbSession.user, sbSession.access_token, intendedRole);

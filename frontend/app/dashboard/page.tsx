@@ -225,6 +225,12 @@ export default function DashboardPage() {
               {uploadingPdf ? "Processing…" : "Import from PDF"}
             </span>
           </label>
+          <Link href="/pdf/upload" className="inline-flex">
+            <Button variant="outline">
+              <FileText className="size-4" />
+              PDF Upload
+            </Button>
+          </Link>
           <Button variant="outline" onClick={() => setShowAddPatient(true)}>
             <UserPlus className="size-4" />
             Add Patient

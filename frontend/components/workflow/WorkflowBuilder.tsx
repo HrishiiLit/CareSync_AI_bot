@@ -77,7 +77,42 @@ const nodeTypes: NodeTypes = {
   action: ActionNode,
   conditional: ConditionalNode,
   endpoint: EndpointNode,
+  // Common aliases stored in older workflows or imported examples
+  call_patient: ActionNode,
+  send_sms: ActionNode,
+  send_summary: EndpointNode,
 };
+
+// Normalize node shapes coming from persisted workflows or imports.
+function normalizeNodes(input: Node[]): Node[] {
+  return (input || []).map((n) => {
+    const node = { ...n } as Node;
+    // Some saved workflows used the concrete node-type names as `type` (e.g. 'call_patient').
+    // Normalize them to the editor's registered types while preserving the original as node.data.nodeType.
+    const rawType = (node.type as string) || (node.data && (node.data.nodeType as string));
+    if (rawType) {
+      if (rawType.startsWith('call_') || rawType === 'call_patient') node.type = 'action';
+      if (rawType.startsWith('send_') && rawType !== 'send_sms') node.type = 'endpoint';
+      if (rawType === 'send_sms') node.type = 'action';
+    }
+    // Ensure data object exists
+    node.data = { ...(node.data || {}) } as any;
+    return node;
+  });
+}
+
+function normalizeEdges(input: Edge[]): Edge[] {
+  return (input || []).map((e) => ({
+    id: e.id ?? `e_${e.source}_${e.target}_${Date.now()}`,
+    source: e.source,
+    target: e.target,
+    sourceHandle: (e as any).sourceHandle,
+    targetHandle: (e as any).targetHandle,
+    animated: e.animated ?? true,
+    style: e.style ?? { stroke: '#C43B3B', strokeWidth: 2 },
+    data: (e as any).data ?? undefined,
+  }));
+}
 
 // ─── Edge defaults ───────────────────────────────────────────────────────────
 
@@ -209,8 +244,8 @@ function FlowContent() {
         if (wf && wf.id) {
           const loadedNodes: Node[] = Array.isArray(wf.nodes) ? wf.nodes : [];
           const loadedEdges: Edge[] = Array.isArray(wf.edges) ? wf.edges : [];
-          setNodes(loadedNodes);
-          setEdges(loadedEdges);
+          setNodes(normalizeNodes(loadedNodes));
+          setEdges(normalizeEdges(loadedEdges));
           setSavedWorkflowId(wf.id);
           setWorkflowName(wf.name ?? '');
           setWorkflowDescription(wf.description ?? '');
@@ -553,8 +588,8 @@ function FlowContent() {
   const loadWorkflow = useCallback((wf: any) => {
     const loadedNodes: Node[] = Array.isArray(wf.nodes) ? wf.nodes : [];
     const loadedEdges: Edge[] = Array.isArray(wf.edges) ? wf.edges : [];
-    setNodes(loadedNodes);
-    setEdges(loadedEdges);
+    setNodes(normalizeNodes(loadedNodes));
+    setEdges(normalizeEdges(loadedEdges));
     setSavedWorkflowId(wf.id);
     setWorkflowName(wf.name ?? '');
     setWorkflowDescription(wf.description ?? '');
@@ -1080,7 +1115,7 @@ function FlowContent() {
 
                 <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 mb-4">
                   {(runResult.execution_log ?? []).map((step: any, i: number) => (
-                    <div key={i} className="rounded-lg bg-muted border border-border px-3 py-2">
+                    <div key={`${step.node_type ?? step.label}_${i}`} className="rounded-lg bg-muted border border-border px-3 py-2">
                       <div className="flex items-center gap-2">
                         <span
                           className="size-2 rounded-full flex-shrink-0"
