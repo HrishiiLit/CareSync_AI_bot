@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getPatient, listConditions, listMedications, listReports } from "@/services/api";
+import { getPatient, listConditions, listMedications, listReports, updatePatient } from "@/services/api";
+import { Button } from "@/components/ui/button";
 import dynamic from 'next/dynamic';
 
 const PdfUploadPreview = dynamic(() => import('@/components/pdf/PdfUploadPreview'), { ssr: false });
@@ -13,6 +14,9 @@ export default function PatientDetailsPage() {
   const patientId = params?.id;
 
   const [patient, setPatient] = useState<any>(null);
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [editingPhone, setEditingPhone] = useState("");
+  const [savingPhone, setSavingPhone] = useState(false);
   const [conditions, setConditions] = useState<any[]>([]);
   const [medications, setMedications] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
@@ -72,6 +76,42 @@ export default function PatientDetailsPage() {
             <h2 className="font-medium">Profile</h2>
             <p className="mt-2 text-sm">Name: {patient.name ?? "Unknown"}</p>
             <p className="text-sm">Phone: {patient.phone ?? "Unknown"}</p>
+            {isEditingPhone ? (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  aria-label="Edit phone"
+                  className="input border bg-background px-2 py-1 text-sm rounded"
+                  value={editingPhone}
+                  onChange={(e) => setEditingPhone(e.target.value)}
+                />
+                <Button size="sm" onClick={async () => {
+                  if (!patientId) return;
+                  setSavingPhone(true);
+                  try {
+                    await updatePatient(patientId, { phone: editingPhone });
+                    const refreshed = await getPatient(patientId).catch(() => null);
+                    setPatient(refreshed);
+                    setIsEditingPhone(false);
+                  } catch (err) {
+                    alert((err as any)?.message || "Failed to update phone");
+                  } finally {
+                    setSavingPhone(false);
+                  }
+                }}>
+                  {savingPhone ? "Saving…" : "Save"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setIsEditingPhone(false); setEditingPhone(""); }}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{patient.phone ?? "Unknown"}</span>
+                <Button size="sm" variant="ghost" onClick={() => { setEditingPhone(patient.phone ?? ""); setIsEditingPhone(true); }}>
+                  Edit
+                </Button>
+              </div>
+            )}
             <p className="text-sm">Email: {patient.email ?? "Not set"}</p>
           </div>
 

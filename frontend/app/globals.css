@@ -188,3 +188,13 @@
 *::-webkit-scrollbar-thumb:hover {
   background-color: var(--muted-foreground);
 }
+
+/* Ensure pointer cursor for interactive, non-semantic elements (fallbacks) */
+[role="button"], a[role="button"], [data-clickable], .clickable {
+  cursor: pointer;
+}
+
+/* Disabled states should indicate not-allowed */
+[aria-disabled="true"], :disabled {
+  cursor: not-allowed;
+}

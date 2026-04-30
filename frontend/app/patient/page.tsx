@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLocalAuth } from "@/lib/local-auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RoleMismatchState } from "@/components/RoleMismatchState";
 import {
   cancelPatientPortalAppointment,
   listDoctors,
@@ -186,6 +187,22 @@ export default function PatientPortalPage() {
           Loading patient portal...
         </div>
       </div>
+    );
+  }
+
+  if (user?.role && user.role !== "patient") {
+    const isDoctor = user.role === "doctor";
+    return (
+      <RoleMismatchState
+        title={isDoctor ? "This portal is for patients" : "Complete onboarding first"}
+        description={
+          isDoctor
+            ? "You are signed in as a doctor. Use the doctor dashboard for patient management, call logs, and workflow tools."
+            : "You need to finish onboarding before using the patient portal."
+        }
+        actionLabel={isDoctor ? "Go to doctor dashboard" : "Finish onboarding"}
+        actionHref={isDoctor ? "/dashboard" : "/onboarding"}
+      />
     );
   }
 

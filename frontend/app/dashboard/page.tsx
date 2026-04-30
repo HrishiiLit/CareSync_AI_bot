@@ -302,6 +302,14 @@ export default function DashboardPage() {
                 {patients.slice(0, 8).map((p) => (
                   <tr
                     key={p.id}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleSelectPatient(p.id);
+                      }
+                    }}
                     onClick={() => handleSelectPatient(p.id)}
                     className={cn(
                       "border-b border-border/50 last:border-0 cursor-pointer transition-colors",
@@ -656,6 +664,53 @@ export default function DashboardPage() {
                   </div>
                   <Link href={`/workflow?id=${wf.id}`}><Button size="sm" variant="ghost"><ArrowRight className="size-3" /></Button></Link>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Call logs */}
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <div className="flex items-center gap-2">
+              <FileText className="size-4 text-primary" />
+              <h3 className="text-sm font-semibold">Call Logs</h3>
+            </div>
+            <Link href="/calls">
+              <Button size="sm" variant="ghost">
+                <ArrowRight className="size-3" />
+              </Button>
+            </Link>
+          </div>
+          {loadingData ? (
+            <div className="px-5 py-6 text-sm text-muted-foreground">Loading…</div>
+          ) : recentCalls.length === 0 ? (
+            <div className="px-5 py-6 text-center text-sm text-muted-foreground">No call logs yet.</div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {recentCalls.map((call) => (
+                <button
+                  key={call.id}
+                  type="button"
+                  onClick={() => setSelectedCallLogId(call.id)}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 px-5 py-3 text-left transition-colors hover:bg-muted/30",
+                    selectedCallLogId === call.id && "bg-muted/40",
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="truncate text-xs font-medium">{call.patient_name ?? call.patient_id ?? call.id}</h4>
+                      <span className={cn("inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-semibold", statusColor(call.status ?? "unknown"))}>
+                        {call.status ?? "unknown"}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {call.created_at ? new Date(call.created_at).toLocaleString() : "Unknown"}
+                    </span>
+                  </div>
+                  <ArrowRight className="size-3 shrink-0 text-muted-foreground" />
+                </button>
               ))}
             </div>
           )}

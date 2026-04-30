@@ -82,6 +82,14 @@ export default function CallsPage() {
             {rows.map((row) => (
               <tr
                 key={row.id}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedCallLogId(row.id);
+                  }
+                }}
                 className={`border-t cursor-pointer transition-colors hover:bg-muted/40 ${selectedCallLogId === row.id ? "bg-muted/50" : ""}`}
                 onClick={() => setSelectedCallLogId(row.id)}
               >
