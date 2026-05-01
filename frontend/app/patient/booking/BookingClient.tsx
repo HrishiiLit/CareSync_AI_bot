@@ -192,7 +192,12 @@ export default function BookingClient() {
             <article key={doctor.id} className="rounded-xl border border-border bg-card p-4">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-sm font-semibold">{doctor.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold">{doctor.name}</p>
+                    <Link href={`/doctors/${doctor.id}`}>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]">Details</Button>
+                    </Link>
+                  </div>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1"><Stethoscope className="size-3.5" />{doctor.specialty}</span>
                   </div>

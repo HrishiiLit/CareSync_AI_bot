@@ -1,6 +1,8 @@
 // This is api.ts and this is used for handling requests to the FastAPI backend.
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = typeof window === 'undefined'
+  ? (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000')
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 
 export interface DoctorListItem {
   id: string;
@@ -844,11 +846,16 @@ export async function deletePdfDocument(docId: string) {
 // Notifications
 // ---------------------------------------------------------------------------
 
-export async function listNotifications(patientId?: string) {
+export async function listNotifications(patientId?: string, doctorId?: string) {
   const params = new URLSearchParams();
   if (patientId) params.set('patient_id', patientId);
+  if (doctorId) params.set('doctor_id', doctorId);
   const qs = params.toString();
   const response = await fetch(`${API_URL}/api/notifications${qs ? `?${qs}` : ''}`);
+  if (!response.ok) {
+    const detail = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch notifications (${response.status}): ${detail}`);
+  }
   return response.json();
 }
 

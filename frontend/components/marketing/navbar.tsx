@@ -32,45 +32,45 @@ export function Navbar() {
   return (
     <header
       className={`fixed top-0 z-50 w-full transition-all duration-500 ${collapsed
-          ? "bg-background/80 backdrop-blur-xl md:bg-transparent md:backdrop-blur-none"
+          ? "bg-background/80 backdrop-blur-xl"
           : "bg-background/80 backdrop-blur-xl"
         }`}
     >
       {/* Single morphing nav */}
       <nav
-        className={`mx-auto flex items-center justify-between border border-transparent transition-all duration-500 h-20 max-w-7xl rounded-none px-6 ${collapsed
-            ? "md:max-w-2xl md:h-12 md:rounded-full md:px-4 md:border-border/50 md:bg-background/90 md:shadow-lg md:backdrop-blur-xl md:mt-3"
-            : "md:bg-transparent md:shadow-none md:backdrop-blur-none md:mt-0"
+        className={`mx-auto flex items-center justify-between border border-transparent transition-all duration-500 h-20 px-6 ${collapsed
+            ? "max-w-full h-16 px-4 border-border/50 bg-background/90 shadow-lg backdrop-blur-xl mt-2"
+            : "max-w-7xl bg-transparent shadow-none backdrop-blur-none mt-0"
           }`}
       >
         {/* Logo — always visible, shrinks when collapsed */}
         <Link
           href="/"
-          className={`flex items-center gap-2 font-serif tracking-tight text-foreground transition-all duration-500 text-2xl ${collapsed ? "md:text-lg" : ""}`}
+          className={`flex items-center gap-2 font-serif tracking-tight text-foreground transition-all duration-500 text-2xl flex-shrink-0 ${collapsed ? "text-lg" : ""}`}
         >
           <Image
             src="/assets/Clarus.png"
             alt="Clarus"
             width={36}
             height={36}
-            className={`transition-all duration-500 h-9 w-9 ${collapsed ? "md:h-6 md:w-6" : ""}`}
+            className={`transition-all duration-500 h-9 w-9 flex-shrink-0 ${collapsed ? "h-6 w-6" : ""}`}
           />
-          CareSync AI
+          <span className="whitespace-nowrap">CareSync AI</span>
         </Link>
 
         {/* Desktop nav links */}
         <div
-          className={`hidden items-center md:flex transition-all duration-500 ${collapsed ? "gap-1" : "gap-8"
+          className={`hidden items-center md:flex transition-all duration-500 flex-shrink-0 ${collapsed ? "gap-2" : "gap-8"
             }`}
         >
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className={`text-sm transition-all duration-500 ${collapsed
+              className={`text-sm transition-all duration-500 whitespace-nowrap ${collapsed
                   ? pathname === link.href
-                    ? "rounded-full bg-foreground px-4 py-1.5 text-background"
-                    : "rounded-full px-4 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "rounded-full bg-foreground px-3 py-1 text-background text-xs"
+                    : "rounded-full px-3 py-1 text-muted-foreground hover:bg-muted hover:text-foreground text-xs"
                   : "text-muted-foreground hover:text-foreground"
                 }`}
             >
@@ -81,18 +81,18 @@ export function Navbar() {
           {!isLoading && isAuthenticated ? (
             <Link
               href={user?.role === "patient" ? "/patient" : "/dashboard"}
-              className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
+              className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-80 flex-shrink-0 whitespace-nowrap"
             >
-              <UserIcon className="h-4 w-4" />
+              <UserIcon className="h-3.5 w-3.5" />
               Dashboard
             </Link>
           ) : (
             <Link
               href="/signIn"
-              className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background transition-opacity hover:opacity-80"
+              className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-80 flex-shrink-0 whitespace-nowrap"
             >
               Login / Sign Up
-              <ArrowUpRight className="h-3.5 w-3.5" />
+              <ArrowUpRight className="h-3 w-3" />
             </Link>
           )}
         </div>

@@ -19,11 +19,11 @@ const tiers = [
   {
     key: "starter",
     name: "Starter",
-    price: "$49",
+    price: "₹499",
     period: "/mo",
     description: "For small clinics getting started with automation.",
     includes: "50 calls included",
-    overage: "$0.75 per additional call",
+    overage: "₹0.75 per additional call",
     features: [
       "1 physician account",
       "Trigger configuration UI",
@@ -37,11 +37,11 @@ const tiers = [
   {
     key: "pro",
     name: "Pro",
-    price: "$149",
+    price: "₹1,499",
     period: "/mo",
     description: "For growing practices that need more volume.",
     includes: "200 calls included",
-    overage: "$0.60 per additional call",
+    overage: "₹0.60 per additional call",
     features: [
       "Up to 5 physician accounts",
       "Advanced trigger filters",
@@ -56,11 +56,11 @@ const tiers = [
   {
     key: "clinic",
     name: "Clinic",
-    price: "$399",
+    price: "₹3,999",
     period: "/mo",
     description: "For multi-physician clinics with high patient volume.",
     includes: "600 calls included",
-    overage: "$0.50 per additional call",
+    overage: "₹0.50 per additional call",
     features: [
       "Up to 15 physician accounts",
       "All Pro features",

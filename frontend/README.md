@@ -1,5 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## CareSync Frontend Notes
+
+- Root directory for Vercel deployment is `frontend/`.
+- Copy environment variables from `frontend/.env.example`.
+- For full-stack deployment guidance (Docker + Vercel), see `../DEPLOYMENT.md`.
+
 ## Getting Started
 
 First, run the development server:

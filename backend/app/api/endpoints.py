@@ -836,6 +836,7 @@ async def execute_workflow_endpoint(workflow_id: str, body: ExecuteRequest):
         db.create_call_log,
         {
             "workflow_id": workflow_id,
+            "doctor_id": workflow.get("doctor_id"),
             "patient_id": body.patient_id,
             "status": "running",
             "execution_log": [],
@@ -1052,6 +1053,14 @@ async def list_call_logs_endpoint(
     patient_id: str | None = None,
 ):
     return await _run_db_call(db.list_call_logs, workflow_id, doctor_id, patient_id)
+
+
+@router.get("/notifications")
+async def list_notifications_endpoint(
+    patient_id: str | None = None,
+    doctor_id: str | None = None,
+):
+    return await _run_db_call(db.list_notifications, patient_id, doctor_id)
 
 
 @router.post("/call-logs/{call_log_id}/check")

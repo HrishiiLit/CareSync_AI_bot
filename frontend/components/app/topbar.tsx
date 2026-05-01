@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { listPatients, listWorkflows, listCallLogs } from "@/services/api";
+import { listPatients, listWorkflows, listCallLogs, listNotifications } from "@/services/api";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -195,32 +195,18 @@ export function Topbar() {
     router.push(result.href);
   };
 
-  // Fetch notifications (recent call logs as notification items)
+  // Fetch actual doctor notifications created by workflow execution
   const fetchNotifications = useCallback(async () => {
     setLoadingNotifs(true);
     try {
-      const logs = await listCallLogs(undefined, doctorId);
-      const items = (Array.isArray(logs) ? logs : []).slice(0, 20).map((cl: any) => ({
-        id: cl.id,
-        type: cl.status === "failed" ? "error" : cl.status === "completed" ? "success" : "info",
-        title:
-          cl.status === "failed" ? "Workflow Execution Failed" :
-          cl.status === "completed" ? "Workflow Completed" :
-          cl.status === "running" ? "Workflow Running" :
-          "Workflow Initiated",
-        message: cl.outcome
-          ? `Outcome: ${cl.outcome}`
-          : `Status: ${cl.status}${cl.trigger_node ? ` · Trigger: ${cl.trigger_node}` : ""}`,
-        time: cl.created_at,
-        href: "/calls",
-      }));
-      setNotifications(items);
+      const items = await listNotifications(undefined, doctorId);
+      setNotifications(Array.isArray(items) ? items : []);
     } catch {
       setNotifications([]);
     } finally {
       setLoadingNotifs(false);
     }
-  }, []);
+  }, [doctorId]);
 
   const handleOpenNotifications = () => {
     setShowNotifications(!showNotifications);
@@ -343,7 +329,7 @@ export function Topbar() {
                   {notifications.map((n) => (
                     <Link
                       key={n.id}
-                      href={n.href}
+                      href={n.href || "/calls"}
                       onClick={() => setShowNotifications(false)}
                       className={cn(
                         "flex items-start gap-3 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors",

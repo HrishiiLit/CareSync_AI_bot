@@ -8,6 +8,7 @@ import {
   type DoctorListItem,
   type DoctorAvailabilitySlot,
 } from "@/services/api";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CalendarClock, CircleDollarSign, Languages, Loader2, Stethoscope, User } from "lucide-react";
 
@@ -249,6 +250,9 @@ export default function DoctorsPage() {
                     >
                       {doctor.available_now ? "Available now" : `Next: ${formatDateTime(doctor.next_slot_start)}`}
                     </span>
+                    <Link href={`/doctors/${doctor.id}`}>
+                      <Button size="sm" variant="outline">View Details</Button>
+                    </Link>
                     <Button size="sm" variant="outline" onClick={() => handleLoadAvailability(doctor.id)}>
                       {isExpanded ? "Hide Slots" : "View Slots"}
                     </Button>

@@ -382,6 +382,9 @@ export default function PatientPortalPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
+                          <Link href={`/doctors/${doctor.id}`}>
+                            <Button size="sm" variant="outline">View Details</Button>
+                          </Link>
                           <Link href={`/patient/booking?doctorId=${doctor.id}`}>
                             <Button size="sm" variant="outline">Begin See Available Slots</Button>
                           </Link>

@@ -389,20 +389,21 @@ def list_doctors(
 ) -> list[dict]:
     sb = get_supabase()
 
+    now_iso = _utc_now_iso()
+    now_dt = datetime.now(timezone.utc)
+
     q = sb.table("doctors").select("*").eq("active", True)
     if specialty:
         q = q.ilike("specialty", f"%{specialty}%")
     if language:
-        q = q.ilike("language", f"%{language}%")
+        q = q.eq("language", language)
     if consultation_type:
         q = q.eq("consultation_type", consultation_type)
 
-    doctors = q.order("name").execute().data
+    doctors = q.order("rating_avg", desc=True).execute().data
     if not doctors:
         return []
 
-    now_iso = _utc_now_iso()
-    now_dt = datetime.now(timezone.utc)
     doctor_ids = [d["id"] for d in doctors]
 
     slot_rows = (
@@ -1124,24 +1125,53 @@ def list_call_logs(
     patient_id: str | None = None,
 ) -> list[dict]:
     sb = get_supabase()
-    q = sb.table("call_logs").select("*")
+    base_query = sb.table("call_logs").select("*")
     if workflow_id:
-        q = q.eq("workflow_id", workflow_id)
+        base_query = base_query.eq("workflow_id", workflow_id)
     if patient_id:
-        q = q.eq("patient_id", patient_id)
-    if doctor_id:
-        patient_ids = [
-            p["id"]
-            for p in sb.table("patients")
-            .select("id")
+        base_query = base_query.eq("patient_id", patient_id)
+
+    rows = base_query.order("created_at", desc=True).execute().data
+    if not doctor_id:
+        return rows
+
+    merged_rows = {row["id"]: row for row in rows}
+
+    try:
+        doctor_rows = (
+            sb.table("call_logs")
+            .select("*")
             .eq("doctor_id", doctor_id)
+            .order("created_at", desc=True)
             .execute()
             .data
-        ]
-        if not patient_ids:
-            return []
-        q = q.in_("patient_id", patient_ids)
-    return q.order("created_at", desc=True).execute().data
+        )
+        for row in doctor_rows:
+            merged_rows[row["id"]] = row
+    except Exception:
+        pass
+
+    patient_ids = [
+        patient["id"]
+        for patient in sb.table("patients")
+        .select("id")
+        .eq("doctor_id", doctor_id)
+        .execute()
+        .data
+    ]
+    if patient_ids:
+        patient_rows = (
+            sb.table("call_logs")
+            .select("*")
+            .in_("patient_id", patient_ids)
+            .order("created_at", desc=True)
+            .execute()
+            .data
+        )
+        for row in patient_rows:
+            merged_rows[row["id"]] = row
+
+    return sorted(merged_rows.values(), key=lambda row: row.get("created_at", ""), reverse=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1190,11 +1220,13 @@ def create_notification(payload: dict) -> dict:
     return sb.table("notifications").insert(payload).execute().data[0]
 
 
-def list_notifications(patient_id: str | None = None) -> list[dict]:
+def list_notifications(patient_id: str | None = None, recipient: str | None = None) -> list[dict]:
     sb = get_supabase()
     q = sb.table("notifications").select("*")
     if patient_id:
         q = q.eq("patient_id", patient_id)
+    if recipient:
+        q = q.eq("recipient", recipient)
     return q.order("created_at", desc=True).execute().data
 
 

@@ -9,11 +9,183 @@ function getWebhookEntry(callLog: any) {
   return entries.find((step: any) => step?.node_id === "elevenlabs_webhook") ?? null;
 }
 
-function formatWebhookTranscript(entry: any) {
+type TranscriptLine = {
+  speaker: string;
+  message: string;
+  timeLabel?: string;
+  tone: "doctor" | "patient" | "system" | "unknown";
+};
+
+function parseTranscript(entry: any): TranscriptLine[] {
   const transcript = entry?.transcript;
-  if (typeof transcript === "string") return transcript;
-  if (Array.isArray(transcript)) return transcript.map((line: any) => (typeof line === "string" ? line : JSON.stringify(line, null, 2))).join("\n");
-  return "No transcript captured.";
+  const lines: TranscriptLine[] = [];
+
+  const pushLine = (speaker: string, message: string, timeLabel?: string) => {
+    const normalizedSpeaker = speaker.trim();
+    const lower = normalizedSpeaker.toLowerCase();
+    const tone: TranscriptLine["tone"] =
+      lower.includes("doctor") || lower.includes("clinician")
+        ? "doctor"
+        : lower.includes("patient")
+          ? "patient"
+          : lower.includes("system") || lower.includes("assistant") || lower.includes("agent")
+            ? "system"
+            : "unknown";
+
+    lines.push({
+      speaker: normalizedSpeaker || "Unknown",
+      message: message.trim() || "(empty message)",
+      timeLabel,
+      tone,
+    });
+  };
+
+  if (Array.isArray(transcript)) {
+    transcript.forEach((item: any, index: number) => {
+      if (typeof item === "string") {
+        const raw = item.trim();
+        const match = raw.match(/^\[(.*?)s\]\s*([^:]+):\s*(.*)$/);
+        if (match) {
+          pushLine(match[2], match[3], `${match[1]}s`);
+          return;
+        }
+        const fallback = raw.match(/^([^:]+):\s*(.*)$/);
+        if (fallback) {
+          pushLine(fallback[1], fallback[2]);
+          return;
+        }
+        pushLine(index % 2 === 0 ? "Patient" : "Doctor", raw);
+        return;
+      }
+
+      if (item && typeof item === "object") {
+        const speaker = item.role || item.speaker || item.sender || item.name || "Unknown";
+        const message = item.message || item.text || item.content || "";
+        const seconds = item.time_in_call_secs ?? item.time ?? item.timestamp;
+        const timeLabel = seconds !== undefined && seconds !== null && seconds !== "" ? `${seconds}s` : undefined;
+        pushLine(String(speaker), String(message), timeLabel);
+      }
+    });
+    return lines;
+  }
+
+  if (typeof transcript === "string") {
+    const rawLines = transcript.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    rawLines.forEach((line, index) => {
+      const match = line.match(/^\[(.*?)s\]\s*([^:]+):\s*(.*)$/);
+      if (match) {
+        pushLine(match[2], match[3], `${match[1]}s`);
+        return;
+      }
+      const fallback = line.match(/^([^:]+):\s*(.*)$/);
+      if (fallback) {
+        pushLine(fallback[1], fallback[2]);
+        return;
+      }
+      pushLine(index % 2 === 0 ? "Patient" : "Doctor", line);
+    });
+  }
+
+  return lines;
+}
+
+function speakerToneClasses(tone: TranscriptLine["tone"]) {
+  if (tone === "doctor") return "border-primary/20 bg-primary/5 text-primary";
+  if (tone === "patient") return "border-success/20 bg-success/5 text-success";
+  if (tone === "system") return "border-muted-foreground/20 bg-muted/40 text-muted-foreground";
+  return "border-border bg-background text-foreground";
+}
+
+type ExecutionLogStep = {
+  title: string;
+  nodeId: string;
+  status: string;
+  summary?: string;
+  timeLabel?: string;
+  accent: "success" | "warning" | "destructive" | "neutral";
+  raw: any;
+};
+
+function stringifyPreview(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.length ? `Array(${value.length})` : "[]";
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entryValue]) => entryValue !== undefined && entryValue !== null && entryValue !== "")
+      .slice(0, 3)
+      .map(([key, entryValue]) => `${key}: ${stringifyPreview(entryValue)}`);
+    return entries.length ? entries.join(" • ") : "{}";
+  }
+  return String(value);
+}
+
+function parseExecutionLog(executionLog: any): ExecutionLogStep[] {
+  if (!Array.isArray(executionLog)) return [];
+
+  return executionLog.map((entry: any, index: number) => {
+    if (typeof entry === "string") {
+      return {
+        title: `Step ${index + 1}`,
+        nodeId: "text-entry",
+        status: "info",
+        summary: entry,
+        accent: "neutral",
+        raw: entry,
+      };
+    }
+
+    const title =
+      entry?.title
+      || entry?.name
+      || entry?.node_name
+      || entry?.node_id
+      || entry?.step
+      || `Step ${index + 1}`;
+    const nodeId = String(entry?.node_id || entry?.nodeName || entry?.id || `step-${index + 1}`);
+    const status = String(entry?.status || entry?.state || entry?.result || entry?.outcome || "unknown");
+    const summary =
+      entry?.message
+      || entry?.summary
+      || entry?.description
+      || entry?.error
+      || entry?.output
+      || entry?.response
+      || entry?.transcript
+      || "";
+    const timestamp = entry?.created_at || entry?.timestamp || entry?.time || entry?.completed_at;
+    const duration = entry?.duration_ms || entry?.duration || entry?.elapsed_ms;
+    const accent: ExecutionLogStep["accent"] = /fail|error|reject|cancel/i.test(status)
+      ? "destructive"
+      : /warn|partial|pending|running|processing/i.test(status)
+        ? "warning"
+        : /success|complete|done|ok/i.test(status)
+          ? "success"
+          : "neutral";
+    const timeLabel = timestamp
+      ? new Date(timestamp).toLocaleString()
+      : duration !== undefined && duration !== null && duration !== ""
+        ? `${duration}ms`
+        : undefined;
+
+    return {
+      title: String(title),
+      nodeId,
+      status,
+      summary: typeof summary === "string" ? summary.trim() : stringifyPreview(summary),
+      timeLabel,
+      accent,
+      raw: entry,
+    };
+  });
+}
+
+function executionLogToneClasses(accent: ExecutionLogStep["accent"]) {
+  if (accent === "success") return "border-success/20 bg-success/5 text-success";
+  if (accent === "warning") return "border-amber-500/20 bg-amber-500/5 text-amber-700";
+  if (accent === "destructive") return "border-destructive/20 bg-destructive/5 text-destructive";
+  return "border-border bg-background text-foreground";
 }
 
 export default function CallsPage() {
@@ -29,6 +201,14 @@ export default function CallsPage() {
     [rows, selectedCallLogId],
   );
   const selectedWebhookEntry = selectedCallLog ? getWebhookEntry(selectedCallLog) : null;
+  const executionSteps = useMemo(
+    () => parseExecutionLog(selectedCallLog?.execution_log),
+    [selectedCallLog],
+  );
+  const transcriptLines = useMemo(() => parseTranscript(selectedWebhookEntry), [selectedWebhookEntry]);
+  const transcriptText = selectedWebhookEntry?.transcript;
+  const transcriptCount = transcriptLines.length;
+  const executionStepCount = executionSteps.length;
 
   useEffect(() => {
     let mounted = true;
@@ -132,17 +312,115 @@ export default function CallsPage() {
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Transcript</p>
-            <pre className="mt-2 max-h-72 overflow-auto rounded-md border bg-muted/30 p-3 text-[11px] leading-relaxed whitespace-pre-wrap">
-              {formatWebhookTranscript(selectedWebhookEntry)}
-            </pre>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Transcript</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {transcriptCount > 0 ? `${transcriptCount} message${transcriptCount === 1 ? "" : "s"} captured` : "No transcript captured."}
+                </p>
+              </div>
+              {transcriptCount > 0 ? (
+                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Conversation timeline
+                </div>
+              ) : null}
+            </div>
+
+            {transcriptCount > 0 ? (
+              <div className="mt-3 space-y-3 rounded-xl border bg-background p-3">
+                {transcriptLines.map((line, index) => (
+                  <div
+                    key={`${line.speaker}-${index}-${line.timeLabel || "na"}`}
+                    className={`rounded-lg border px-3 py-2 ${speakerToneClasses(line.tone)}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold">{line.speaker}</p>
+                        <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">
+                          {line.message}
+                        </p>
+                      </div>
+                      {line.timeLabel ? (
+                        <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+                          {line.timeLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2 rounded-lg border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">
+                This call has no transcript stored yet.
+              </div>
+            )}
+
+            {typeof transcriptText === "string" && transcriptText.trim() ? (
+              <details className="mt-3 rounded-lg border bg-muted/20 p-3">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">View raw transcript</summary>
+                <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/80">
+                  {transcriptText}
+                </pre>
+              </details>
+            ) : null}
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Execution Log</p>
-            <pre className="mt-2 max-h-72 overflow-auto rounded-md border bg-muted/30 p-3 text-[11px] leading-relaxed whitespace-pre-wrap">
-              {JSON.stringify(selectedCallLog.execution_log ?? [], null, 2)}
-            </pre>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Execution Log</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {executionStepCount > 0 ? `${executionStepCount} step${executionStepCount === 1 ? "" : "s"} recorded` : "No execution log captured."}
+                </p>
+              </div>
+              {executionStepCount > 0 ? (
+                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Workflow trace
+                </div>
+              ) : null}
+            </div>
+
+            {executionStepCount > 0 ? (
+              <div className="mt-3 space-y-3">
+                {executionSteps.map((step, index) => (
+                  <div key={`${step.nodeId}-${index}`} className={`rounded-xl border p-3 ${executionLogToneClasses(step.accent)}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs font-semibold">{step.title}</p>
+                          <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                            {step.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-muted-foreground">Node: {step.nodeId}</p>
+                      </div>
+                      {step.timeLabel ? (
+                        <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+                          {step.timeLabel}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {step.summary ? (
+                      <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">{step.summary}</p>
+                    ) : null}
+
+                    <details className="mt-3 rounded-lg border border-border/70 bg-background/80 px-3 py-2">
+                      <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
+                        View raw step data
+                      </summary>
+                      <pre className="mt-3 max-h-60 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/80">
+                        {JSON.stringify(step.raw, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2 rounded-lg border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">
+                This call has no execution log stored yet.
+              </div>
+            )}
           </div>
         </div>
       ) : null}
