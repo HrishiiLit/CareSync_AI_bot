@@ -50,6 +50,7 @@ type AuthContextValue = {
 const SESSION_KEY = "caresync_local_auth_session";
 const INTENDED_ROLE_KEY = "caresync_intended_role";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -225,10 +226,11 @@ export function LocalAuthProvider({ children }: { children: React.ReactNode }) {
     // We don't know the role yet, we just authenticate.
     // The role will be discovered or asked during onboarding.
     window.localStorage.removeItem(INTENDED_ROLE_KEY);
+    const redirectOrigin = APP_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`
+        redirectTo: `${redirectOrigin}/`
       }
     });
     if (error) throw error;

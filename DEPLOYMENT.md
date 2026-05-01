@@ -82,11 +82,23 @@ Ensure CORS in backend allows your Vercel domain(s).
 In Project Settings -> Environment Variables, add:
 
 - NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+- NEXT_PUBLIC_APP_URL=https://your-vercel-domain.vercel.app
 - NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 - NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 
 Optional for SSR-internal routing (not required on Vercel):
 - INTERNAL_API_URL=https://api.yourdomain.com
+
+### 4b. Update Supabase auth URLs
+
+In your Supabase project settings, set the Auth URL configuration to match production:
+
+- Site URL: `https://your-vercel-domain.vercel.app`
+- Additional Redirect URLs:
+	- `https://your-vercel-domain.vercel.app/*`
+	- `http://localhost:3000/*` for local development
+
+If you use a custom domain later, add it here too.
 
 ### 5. Deploy
 
